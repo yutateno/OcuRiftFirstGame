@@ -24,7 +24,7 @@ limitations under the License.
 /// It runs with DirectX11.
 
 // Include DirectX
-#include "E:\Documents\Visual Studio 2017\Projects\VRTest\Samples\OculusRoomTiny_Advanced\Common\Win32_DirectXAppUtil.h"
+#include "Win32_DirectXAppUtil.h"
 
 // Include the Oculus SDK
 #include "OVR_CAPI_D3D.h"
