@@ -17,6 +17,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 *************************************************************************************/
+
+
 #ifndef OVR_Win32_DirectXAppUtil_h
 #define OVR_Win32_DirectXAppUtil_h
 
@@ -38,20 +40,22 @@ using namespace DirectX;
 #pragma comment(lib, "d3dcompiler.lib")
 
 #ifndef VALIDATE
-#define VALIDATE(x, msg) if (!(x)) { MessageBoxA(nullptr, (msg), "OculusRoomTiny", MB_ICONERROR | MB_OK); exit(-1); }
+#define VALIDATE(x, msg) if (!(x)) { MessageBoxA(nullptr, (msg), "OculusGame", MB_ICONERROR | MB_OK); exit(-1); }
 #endif
 
 #ifndef FATALERROR
-#define FATALERROR(msg) { MessageBoxA(nullptr, (msg), "OculusRoomTiny", MB_ICONERROR | MB_OK); exit(-1); }
+#define FATALERROR(msg) { MessageBoxA(nullptr, (msg), "OculusGame", MB_ICONERROR | MB_OK); exit(-1); }
 #endif
 
-// clean up member COM pointers
+
+// ポインタリリース
 template<typename T> void Release(T *&obj)
 {
 	if (!obj) return;
 	obj->Release();
 	obj = nullptr;
 }
+
 
 //------------------------------------------------------------
 struct DepthBuffer
@@ -84,6 +88,7 @@ struct DepthBuffer
 	}
 };
 
+
 //----------------------------------------------------------------
 struct DataBuffer
 {
@@ -108,6 +113,7 @@ struct DataBuffer
 	}
 };
 
+
 //---------------------------------------------------------------------
 struct DirectX11
 {
@@ -122,7 +128,7 @@ struct DirectX11
 	DepthBuffer            * MainDepthBuffer;
 	ID3D11Texture2D        * BackBuffer;
 	ID3D11RenderTargetView * BackBufferRT;
-	// Fixed size buffer for shader constants, before copied into buffer
+	// バッファにコピーされる前のシェーダ定数の固定サイズバッファ
 	static const int         UNIFORM_DATA_SIZE = 2000;
 	unsigned char            UniformData[UNIFORM_DATA_SIZE];
 	DataBuffer             * UniformBufferGen;
@@ -166,7 +172,7 @@ struct DirectX11
 		UniformBufferGen(nullptr),
 		hInstance(nullptr)
 	{
-		// Clear input
+		// 初期化
 		for (int i = 0; i < sizeof(Key) / sizeof(Key[0]); ++i)
 			Key[i] = false;
 	}
@@ -190,7 +196,7 @@ struct DirectX11
 		wc.cbWndExtra = sizeof(this);
 		RegisterClassW(&wc);
 
-		// adjust the window size and show at InitDevice time
+		// ウィンドウサイズを調整し、デバイスの左上に表示する
 		Window = CreateWindowW(wc.lpszClassName, title, WS_OVERLAPPEDWINDOW, 0, 0, 0, 0, 0, 0, hinst, 0);
 		if (!Window) return false;
 
@@ -250,7 +256,7 @@ struct DirectX11
 		Release(Adapter);
 		VALIDATE((hr == ERROR_SUCCESS), "D3D11CreateDevice failed");
 
-		// Create swap chain
+		// スワップチェインを作成
 		DXGI_SWAP_CHAIN_DESC scDesc;
 		memset(&scDesc, 0, sizeof(scDesc));
 		scDesc.BufferCount = 2;
@@ -267,20 +273,20 @@ struct DirectX11
 		Release(DXGIFactory);
 		VALIDATE((hr == ERROR_SUCCESS), "CreateSwapChain failed");
 
-		// Create backbuffer
+		// バックバッファを作成
 		SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&BackBuffer);
 		hr = Device->CreateRenderTargetView(BackBuffer, nullptr, &BackBufferRT);
 		VALIDATE((hr == ERROR_SUCCESS), "CreateRenderTargetView failed");
 
-		// Main depth buffer
+		// 深度バッファのメイン
 		MainDepthBuffer = new DepthBuffer(Device, WinSizeW, WinSizeH);
 		Context->OMSetRenderTargets(1, &BackBufferRT, MainDepthBuffer->TexDsv);
 
-		// Buffer for shader constants
+		// コンスタントシェーダーバッファ
 		UniformBufferGen = new DataBuffer(Device, D3D11_BIND_CONSTANT_BUFFER, nullptr, UNIFORM_DATA_SIZE);
 		Context->VSSetConstantBuffers(0, 1, &UniformBufferGen->D3DBuffer);
 
-		// Set max frame latency to 1
+		// 最大のフレームレイテンシーをセット
 		IDXGIDevice1* DXGIDevice1 = nullptr;
 		hr = Device->QueryInterface(__uuidof(IDXGIDevice1), (void**)&DXGIDevice1);
 		VALIDATE((hr == ERROR_SUCCESS), "QueryInterface failed");
@@ -322,8 +328,7 @@ struct DirectX11
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
-		// This is to provide a means to terminate after a maximum number of frames
-		// to facilitate automated testing
+		// 自動テストを容易にするために最大数のフレームの後に終了する
 #ifdef MAX_FRAMES_ACTIVE 
 		if (maxFrames > 0)
 		{
@@ -338,10 +343,10 @@ struct DirectX11
 	{
 		while (HandleMessages())
 		{
-			// true => we'll attempt to retry for ovrError_DisplayLost
+			// ovrError_DisplayLostの再試行を試みます
 			if (!MainLoop(true))
 				break;
-			// Sleep a bit before retrying to reduce CPU load while the HMD is disconnected
+			// HMDが切断されている間にCPUの負荷を減らすことをやり直す前に少し寝る
 			Sleep(10);
 		}
 	}
@@ -364,8 +369,10 @@ struct DirectX11
 	}
 };
 
-// global DX11 state
+
+// グローバル DX11 state
 static struct DirectX11 DIRECTX;
+
 
 //------------------------------------------------------------
 struct Texture
@@ -376,7 +383,9 @@ struct Texture
 	int                          SizeW, SizeH, MipLevels;
 
 	enum { AUTO_WHITE = 1, AUTO_WALL, AUTO_FLOOR, AUTO_CEILING, AUTO_GRID, AUTO_GRADE_256 };
+
 	Texture() : Tex(nullptr), TexSv(nullptr), TexRtv(nullptr) {};
+
 	void Init(int sizeW, int sizeH, bool rendertarget, int mipLevels, int sampleCount)
 	{
 		SizeW = sizeW;
@@ -420,7 +429,7 @@ struct Texture
 
 	void FillTexture(uint32_t * pix)
 	{
-		//Make local ones, because will be reducing them
+		// それらを減らすので、ローカルのものを作る
 		int sizeW = SizeW;
 		int sizeH = SizeH;
 		for (int level = 0; level < MipLevels; level++)
@@ -480,6 +489,7 @@ struct Texture
 	}
 };
 
+
 //-----------------------------------------------------
 struct Material
 {
@@ -502,7 +512,7 @@ struct Material
 			{ "Color",    0, DXGI_FORMAT_B8G8R8A8_UNORM,  0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "TexCoord", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 }, };
 
-		// Use defaults if no shaders specified
+		// シェーダが指定されていない場合はデフォルトを使用
 		char* defaultVertexShaderSrc =
 			"float4x4 ProjView;  float4 MasterCol;"
 			"void main(in  float4 Position  : POSITION,    in  float4 Color : COLOR0, in  float2 TexCoord  : TEXCOORD0,"
@@ -513,10 +523,10 @@ struct Material
 			"Texture2D Texture   : register(t0); SamplerState Linear : register(s0); "
 			"float4 main(in float4 Position : SV_Position, in float4 Color: COLOR0, in float2 TexCoord : TEXCOORD0) : SV_Target"
 			"{   float4 TexCol = Texture.Sample(Linear, TexCoord); "
-			"    if (TexCol.a==0) clip(-1); " // If alpha = 0, don't draw
+			"    if (TexCol.a==0) clip(-1); " // もしalphaが0なら描画しない
 			"    return(Color * TexCol); }";
 
-		// vertex shader for instanced stereo
+		// インスタンス化された頂点シェーダ
 		char* instancedStereoVertexShaderSrc =
 			"float4x4 modelViewProj[2];  float4 MasterCol;"
 			"void main(in  float4 Position  : POSITION,    in  float4 Color : COLOR0, in  float2 TexCoord  : TEXCOORD0,"
@@ -526,9 +536,9 @@ struct Material
 			"{"
 			"   const float4 EyeClipPlane[2] = { { -1, 0, 0, 0 }, { 1, 0, 0, 0 } };"
 			"   uint eyeIndex = instanceID & 1;"
-			// transform to clip space for correct eye (includes offset and scale)
+			// 正しい目のためにクリップ空間に変換する（オフセットとスケールを含む
 			"   oPosition = mul(modelViewProj[eyeIndex], Position); "
-			// calculate distance from left/right clip plane (try setting to 0 to see why clipping is necessary)
+			// 左右クリッププレーンからの距離を計算する（クリッピングが必要な理由を見るために0に設定しようとする）
 			"   oCullDist = oClipDist = dot(EyeClipPlane[eyeIndex], oPosition);"
 			"   oTexCoord = TexCoord; "
 			"   oColor = MasterCol * Color;"
@@ -538,7 +548,7 @@ struct Material
 		if (!vertexShader) vertexShader = defaultVertexShaderSrc;
 		if (!pixelShader)  pixelShader = defaultPixelShaderSrc;
 
-		// Create vertex shader
+		// 頂点シェーダ作成
 		ID3DBlob * blobData;
 		ID3DBlob * errorBlob = nullptr;
 		HRESULT result = D3DCompile(vertexShader, strlen(vertexShader), 0, 0, 0, "main", "vs_4_0", 0, 0, &blobData, &errorBlob);
@@ -549,12 +559,12 @@ struct Material
 		}
 		DIRECTX.Device->CreateVertexShader(blobData->GetBufferPointer(), blobData->GetBufferSize(), nullptr, &VertexShader);
 
-		// Create input layout
+		// インプットレイアウト作成
 		DIRECTX.Device->CreateInputLayout(vertexDesc, numVertexDesc,
 			blobData->GetBufferPointer(), blobData->GetBufferSize(), &InputLayout);
 		blobData->Release();
 
-		// Create vertex shader for instancing
+		// インスタンス化のための頂点シェーダの作成
 		result = D3DCompile(instancedStereoVertexShaderSrc, strlen(instancedStereoVertexShaderSrc), 0, 0, 0, "main", "vs_4_0", 0, 0, &blobData, &errorBlob);
 		if (FAILED(result))
 		{
@@ -564,12 +574,12 @@ struct Material
 		DIRECTX.Device->CreateVertexShader(blobData->GetBufferPointer(), blobData->GetBufferSize(), nullptr, &VertexShaderInstanced);
 		blobData->Release();
 
-		// Create pixel shader
+		// ピクセルシェーダ作成
 		D3DCompile(pixelShader, strlen(pixelShader), 0, 0, 0, "main", "ps_4_0", 0, 0, &blobData, 0);
 		DIRECTX.Device->CreatePixelShader(blobData->GetBufferPointer(), blobData->GetBufferSize(), nullptr, &PixelShader);
 		blobData->Release();
 
-		// Create sampler state
+		// サンプラーステイトの作成
 		D3D11_SAMPLER_DESC ss; memset(&ss, 0, sizeof(ss));
 		ss.AddressU = ss.AddressV = ss.AddressW = flags & MAT_WRAP ? D3D11_TEXTURE_ADDRESS_WRAP : D3D11_TEXTURE_ADDRESS_BORDER;
 		ss.Filter = D3D11_FILTER_ANISOTROPIC;
@@ -577,14 +587,14 @@ struct Material
 		ss.MaxLOD = 15;
 		DIRECTX.Device->CreateSamplerState(&ss, &SamplerState);
 
-		// Create rasterizer
+		// ラスタライザの作成
 		D3D11_RASTERIZER_DESC rs; memset(&rs, 0, sizeof(rs));
 		rs.AntialiasedLineEnable = rs.DepthClipEnable = true;
 		rs.CullMode = flags & MAT_NOCULL ? D3D11_CULL_NONE : D3D11_CULL_BACK;
 		rs.FillMode = flags & MAT_WIRE ? D3D11_FILL_WIREFRAME : D3D11_FILL_SOLID;
 		DIRECTX.Device->CreateRasterizerState(&rs, &Rasterizer);
 
-		// Create depth state
+		// 深度ステイトの作成する
 		D3D11_DEPTH_STENCIL_DESC dss;
 		memset(&dss, 0, sizeof(dss));
 		dss.DepthEnable = true;
@@ -592,7 +602,7 @@ struct Material
 		dss.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 		DIRECTX.Device->CreateDepthStencilState(&dss, &DepthState);
 
-		//Create blend state - trans or otherwise
+		//ブレンド状態を作成 - トランスまたはそれ以外
 		D3D11_BLEND_DESC bm;
 		memset(&bm, 0, sizeof(bm));
 		bm.RenderTarget[0].BlendEnable = flags & MAT_TRANS ? true : false;
@@ -616,6 +626,7 @@ struct Material
 	}
 };
 
+
 //----------------------------------------------------------------------
 struct Vertex
 {
@@ -625,6 +636,7 @@ struct Vertex
 	Vertex() {};
 	Vertex(XMFLOAT3 pos, uint32_t c, float u, float v) : Pos(pos), C(c), U(u), V(v) {};
 };
+
 
 //-----------------------------------------------------------------------
 struct TriangleSet
@@ -705,7 +717,7 @@ struct Model
 	DataBuffer * VertexBuffer;
 	DataBuffer * IndexBuffer;
 	int          NumIndices;
-	bool         IsShown; // flag to indicate whether this model is rendered. Default is true.
+	bool         IsShown; // このモデルがレンダリングされるかどうかを示すフラグ
 
 	Model() : Scale(XMFLOAT3(1, 1, 1)), Fill(nullptr), VertexBuffer(nullptr), IndexBuffer(nullptr), IsShown(true) {};
 	void Init(TriangleSet * t)
@@ -723,7 +735,7 @@ struct Model
 	{
 		Init(t);
 	}
-	// 2D scenes, for latency tester and full screen copies, etc
+	// 2Dシーン、レイテンシテスターとフルスクリーンコピーなど
 	Model(Material * mat, float minx, float miny, float maxx, float maxy, float zDepth = 0) :
 		Scale(XMFLOAT3(1, 1, 1)),
 		Pos(XMFLOAT3(0, 0, 0)),
@@ -780,7 +792,7 @@ struct Model
 		Render(&projView, R, G, B, A, standardUniforms);
 	}
 
-	// render using stereo instancing
+	// ステレオインスタンスを使用してレンダリング
 	void RenderInstanced(XMMATRIX *viewProjMats, float R, float G, float B, float A, bool standardUniforms)
 	{
 		XMMATRIX modelMat = XMMatrixMultiply(XMMatrixScalingFromVector(XMLoadFloat3(&Scale)), XMMatrixRotationQuaternion(XMLoadFloat4(&Rot)));
@@ -810,7 +822,7 @@ struct Model
 		DIRECTX.Context->OMSetBlendState(Fill->BlendState, nullptr, 0xffffffff);
 		DIRECTX.Context->PSSetShaderResources(0, 1, &Fill->Tex->TexSv);
 
-		// draw 2 instances
+		// 2つのインスタンスを描画
 		DIRECTX.Context->DrawIndexedInstanced((UINT)NumIndices, 2, 0, 0, 0);
 	}
 
@@ -864,9 +876,9 @@ struct Scene
 		);
 
 		TriangleSet walls;
-		walls.AddSolidColorBox(10.1f, 0.0f, 20.0f, 10.0f, 4.0f, -20.0f, 0xff808080);  // Left Wall
-		walls.AddSolidColorBox(10.0f, -0.1f, 20.1f, -10.0f, 4.0f, 20.0f, 0xff808080); // Back Wall
-		walls.AddSolidColorBox(-10.0f, -0.1f, 20.0f, -10.1f, 4.0f, -20.0f, 0xff808080);   // Right Wall
+		walls.AddSolidColorBox(10.1f, 0.0f, 20.0f, 10.0f, 4.0f, -20.0f, 0xff808080);  // 左壁
+		walls.AddSolidColorBox(10.0f, -0.1f, 20.1f, -10.0f, 4.0f, 20.0f, 0xff808080); // 後ろ壁
+		walls.AddSolidColorBox(-10.0f, -0.1f, 20.0f, -10.1f, 4.0f, -20.0f, 0xff808080);   // 右壁
 		Add(
 			new Model(&walls, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1),
 				new Material(
@@ -879,26 +891,26 @@ struct Scene
 		{
 			TriangleSet partitions;
 			for (float depth = 0.0f; depth > -3.0f; depth -= 0.1f)
-				partitions.AddSolidColorBox(9.0f, 0.5f, -depth, -9.0f, 3.5f, -depth, 0x10ff80ff); // Partition
+				partitions.AddSolidColorBox(9.0f, 0.5f, -depth, -9.0f, 3.5f, -depth, 0x10ff80ff); // パーティション
 			Add(
 				new Model(&partitions, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1),
 					new Material(
 						new Texture(false, 256, 256, Texture::AUTO_FLOOR)
 					)
 				)
-			); // Floors
+			); // 床
 		}
 
 		TriangleSet floors;
-		floors.AddSolidColorBox(10.0f, -0.1f, 20.0f, -10.0f, 0.0f, -20.1f, 0xff808080); // Main floor
-		floors.AddSolidColorBox(15.0f, -6.1f, -18.0f, -15.0f, -6.0f, -30.0f, 0xff808080); // Bottom floor
+		floors.AddSolidColorBox(10.0f, -0.1f, 20.0f, -10.0f, 0.0f, -20.1f, 0xff808080); // メイン床
+		floors.AddSolidColorBox(15.0f, -6.1f, -18.0f, -15.0f, -6.0f, -30.0f, 0xff808080); // 下の床
 		Add(
 			new Model(&floors, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1),
 				new Material(
 					new Texture(false, 256, 256, Texture::AUTO_FLOOR)
 				)
 			)
-		); // Floors
+		); // 床
 
 		TriangleSet ceiling;
 		ceiling.AddSolidColorBox(10.0f, 4.0f, 20.0f, -10.0f, 4.1f, -20.1f, 0xff808080);
@@ -908,39 +920,39 @@ struct Scene
 					new Texture(false, 256, 256, Texture::AUTO_CEILING)
 				)
 			)
-		); // Ceiling
+		); // 天井
 
 		TriangleSet furniture;
-		furniture.AddSolidColorBox(-9.5f, 0.75f, -3.0f, -10.1f, 2.5f, -3.1f, 0xff383838);    // Right side shelf// Verticals
-		furniture.AddSolidColorBox(-9.5f, 0.95f, -3.7f, -10.1f, 2.75f, -3.8f, 0xff383838);   // Right side shelf
-		furniture.AddSolidColorBox(-9.55f, 1.20f, -2.5f, -10.1f, 1.30f, -3.75f, 0xff383838); // Right side shelf// Horizontals
-		furniture.AddSolidColorBox(-9.55f, 2.00f, -3.05f, -10.1f, 2.10f, -4.2f, 0xff383838); // Right side shelf
-		furniture.AddSolidColorBox(-5.0f, 1.1f, -20.0f, -10.0f, 1.2f, -20.1f, 0xff383838);   // Right railing   
-		furniture.AddSolidColorBox(10.0f, 1.1f, -20.0f, 5.0f, 1.2f, -20.1f, 0xff383838);   // Left railing  
+		furniture.AddSolidColorBox(-9.5f, 0.75f, -3.0f, -10.1f, 2.5f, -3.1f, 0xff383838);    // 右側の棚// 垂直
+		furniture.AddSolidColorBox(-9.5f, 0.95f, -3.7f, -10.1f, 2.75f, -3.8f, 0xff383838);   // 右側の棚
+		furniture.AddSolidColorBox(-9.55f, 1.20f, -2.5f, -10.1f, 1.30f, -3.75f, 0xff383838); // 右側の棚// 水平
+		furniture.AddSolidColorBox(-9.55f, 2.00f, -3.05f, -10.1f, 2.10f, -4.2f, 0xff383838); // 右側の棚
+		furniture.AddSolidColorBox(-5.0f, 1.1f, -20.0f, -10.0f, 1.2f, -20.1f, 0xff383838);   // 右柵 
+		furniture.AddSolidColorBox(10.0f, 1.1f, -20.0f, 5.0f, 1.2f, -20.1f, 0xff383838);   // 左柵  
 		for (float f = 5; f <= 9; f += 1)
-			furniture.AddSolidColorBox(-f, 0.0f, -20.0f, -f - 0.1f, 1.1f, -20.1f, 0xff505050); // Left Bars
+			furniture.AddSolidColorBox(-f, 0.0f, -20.0f, -f - 0.1f, 1.1f, -20.1f, 0xff505050); // 左バー
 		for (float f = 5; f <= 9; f += 1)
-			furniture.AddSolidColorBox(f, 1.1f, -20.0f, f + 0.1f, 0.0f, -20.1f, 0xff505050); // Right Bars
-		furniture.AddSolidColorBox(1.8f, 0.8f, -1.0f, 0.0f, 0.7f, 0.0f, 0xff505000);  // Table
-		furniture.AddSolidColorBox(1.8f, 0.0f, 0.0f, 1.7f, 0.7f, -0.1f, 0xff505000); // Table Leg 
-		furniture.AddSolidColorBox(1.8f, 0.7f, -1.0f, 1.7f, 0.0f, -0.9f, 0xff505000); // Table Leg 
-		furniture.AddSolidColorBox(0.0f, 0.0f, -1.0f, 0.1f, 0.7f, -0.9f, 0xff505000);  // Table Leg 
-		furniture.AddSolidColorBox(0.0f, 0.7f, 0.0f, 0.1f, 0.0f, -0.1f, 0xff505000);  // Table Leg 
-		furniture.AddSolidColorBox(1.4f, 0.5f, 1.1f, 0.8f, 0.55f, 0.5f, 0xff202050);  // Chair Set
-		furniture.AddSolidColorBox(1.401f, 0.0f, 1.101f, 1.339f, 1.0f, 1.039f, 0xff202050); // Chair Leg 1
-		furniture.AddSolidColorBox(1.401f, 0.5f, 0.499f, 1.339f, 0.0f, 0.561f, 0xff202050); // Chair Leg 2
-		furniture.AddSolidColorBox(0.799f, 0.0f, 0.499f, 0.861f, 0.5f, 0.561f, 0xff202050); // Chair Leg 2
-		furniture.AddSolidColorBox(0.799f, 1.0f, 1.101f, 0.861f, 0.0f, 1.039f, 0xff202050); // Chair Leg 2
-		furniture.AddSolidColorBox(1.4f, 0.97f, 1.05f, 0.8f, 0.92f, 1.10f, 0xff202050); // Chair Back high bar
+			furniture.AddSolidColorBox(f, 1.1f, -20.0f, f + 0.1f, 0.0f, -20.1f, 0xff505050); // 右バー
+		furniture.AddSolidColorBox(1.8f, 0.8f, -1.0f, 0.0f, 0.7f, 0.0f, 0xff505000);  // テーブル
+		furniture.AddSolidColorBox(1.8f, 0.0f, 0.0f, 1.7f, 0.7f, -0.1f, 0xff505000); // テーブル足
+		furniture.AddSolidColorBox(1.8f, 0.7f, -1.0f, 1.7f, 0.0f, -0.9f, 0xff505000); // テーブル足
+		furniture.AddSolidColorBox(0.0f, 0.0f, -1.0f, 0.1f, 0.7f, -0.9f, 0xff505000);  // テーブル足
+		furniture.AddSolidColorBox(0.0f, 0.7f, 0.0f, 0.1f, 0.0f, -0.1f, 0xff505000);  // テーブル足 
+		furniture.AddSolidColorBox(1.4f, 0.5f, 1.1f, 0.8f, 0.55f, 0.5f, 0xff202050);  // 椅子セット
+		furniture.AddSolidColorBox(1.401f, 0.0f, 1.101f, 1.339f, 1.0f, 1.039f, 0xff202050); // 椅子足
+		furniture.AddSolidColorBox(1.401f, 0.5f, 0.499f, 1.339f, 0.0f, 0.561f, 0xff202050); // 椅子足
+		furniture.AddSolidColorBox(0.799f, 0.0f, 0.499f, 0.861f, 0.5f, 0.561f, 0xff202050); // 椅子足
+		furniture.AddSolidColorBox(0.799f, 1.0f, 1.101f, 0.861f, 0.0f, 1.039f, 0xff202050); // 椅子足
+		furniture.AddSolidColorBox(1.4f, 0.97f, 1.05f, 0.8f, 0.92f, 1.10f, 0xff202050); // 椅子
 		for (float f = 3.0f; f <= 6.6f; f += 0.4f)
-			furniture.AddSolidColorBox(3, 0.0f, -f, 2.9f, 1.3f, -f - 0.1f, 0xff404040); // Posts
+			furniture.AddSolidColorBox(3, 0.0f, -f, 2.9f, 1.3f, -f - 0.1f, 0xff404040); // ポスト
 		Add(
 			new Model(&furniture, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1),
 				new Material(
 					new Texture(false, 256, 256, Texture::AUTO_WHITE)
 				)
 			)
-		); // Fixtures & furniture
+		); // 備品および家具
 	}
 
 	Scene() : numModels(0) {}
@@ -959,6 +971,7 @@ struct Scene
 		Release();
 	}
 };
+
 
 //-----------------------------------------------------------
 struct Camera
@@ -985,6 +998,7 @@ struct Camera
 		_aligned_free(p);
 	}
 };
+
 
 //----------------------------------------------------
 struct Utility
