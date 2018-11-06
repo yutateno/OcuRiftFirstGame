@@ -1,0 +1,9 @@
+main.cppのメインループ内のkeyにてコマンド操作している。
+
+E:\tatenoyu\ovr_sdk_win_1.26.0_public\OculusSDK\Samples\OculusRoomTiny_Advanced\Common
+のWin32_BasicVR.h
+
+E:\tatenoyu\ovr_sdk_win_1.26.0_public\OculusSDK\Samples\OculusRoomTiny_Advanced\ORT (Controllers)
+とか
+
+弄れ
