@@ -1,4 +1,4 @@
-/************************************************************************************
+﻿/************************************************************************************
 Filename    :   Win32_RoomTiny_Main.cpp
 Content     :   First-person view test application for Oculus Rift
 Created     :   11th May 2015
@@ -23,16 +23,15 @@ limitations under the License.
 /// or pressing any key. 
 /// It runs with DirectX11.
 
-// Include DirectX
+// directxによるウィンドウ作成
 #include "Win32_DirectXAppUtil.h"
 
-// Include the Oculus SDK
+// oculus sdkのインクルード
 #include "OVR_CAPI_D3D.h"
 
 
 //------------------------------------------------------------
-// ovrSwapTextureSet wrapper class that also maintains the render target views
-// needed for D3D11 rendering.
+// ovrSwapTextureSetラッパークラスで、D3D11レンダリングに必要なレンダーターゲットビュー
 struct OculusTexture
 {
 	ovrSession               Session;
@@ -52,7 +51,7 @@ struct OculusTexture
 	{
 		Session = session;
 
-		// create color texture swap chain first
+		// 最初にカラーテクスチャスワップチェーンを作成する
 		{
 			ovrTextureSwapChainDesc desc = {};
 			desc.Type = ovrTexture_2D;
@@ -89,7 +88,7 @@ struct OculusTexture
 			}
 		}
 
-		// if requested, then create depth swap chain
+		// 要求された場合、深度スワップチェーンを作成する
 		if (createDepth)
 		{
 			ovrTextureSwapChainDesc desc = {};
@@ -165,7 +164,7 @@ struct OculusTexture
 		return TexDsv[index];
 	}
 
-	// Commit changes
+	// 変更をコミットする
 	void Commit()
 	{
 		ovr_CommitTextureSwapChain(Session, TextureChain);
@@ -173,10 +172,10 @@ struct OculusTexture
 	}
 };
 
-// return true to retry later (e.g. after display lost)
+// 後で再試行するためにtrueを返します（たとえば、表示が失われた後
 static bool MainLoop(bool retryCreate)
 {
-	// Initialize these to nullptr here to handle device lost failures cleanly
+	// これらをnullptrに初期化して、デバイスの失われた障害をきれいに処理する
 	ovrMirrorTexture mirrorTexture = nullptr;
 	OculusTexture  * pEyeRenderTexture[2] = { nullptr, nullptr };
 	Scene          * roomScene = nullptr;
@@ -193,12 +192,12 @@ static bool MainLoop(bool retryCreate)
 
 	ovrHmdDesc hmdDesc = ovr_GetHmdDesc(session);
 
-	// Setup Device and Graphics
-	// Note: the mirror window can be any size, for this sample we use 1/2 the HMD resolution
+	// デバイスとグラフィックのセットアップ
+	// 注：ミラーウィンドウは任意のサイズにすることができます。このサンプルでは、​​HMD解像度の1/2を使用します
 	if (!DIRECTX.InitDevice(hmdDesc.Resolution.w / 2, hmdDesc.Resolution.h / 2, reinterpret_cast<LUID*>(&luid)))
 		goto Done;
 
-	// Make the eye render buffers (caution if actual size < requested due to HW limits). 
+	// 目をバッファに描画させます（実際のサイズ<HWの制限のために要求された場合は注意してください）。 
 	ovrRecti         eyeRenderViewport[2];
 
 	for (int eye = 0; eye < 2; ++eye)
@@ -220,7 +219,7 @@ static bool MainLoop(bool retryCreate)
 		}
 	}
 
-	// Create a mirror to see on the monitor.
+	// モニター上に表示するミラーを作成します。
 	mirrorDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
 	mirrorDesc.Width = DIRECTX.WinSizeW;
 	mirrorDesc.Height = DIRECTX.WinSizeH;
@@ -233,23 +232,23 @@ static bool MainLoop(bool retryCreate)
 		FATALERROR("Failed to create mirror texture.");
 	}
 
-	// Create the room model
+	// ルームモデルを作成する
 	roomScene = new Scene(false);
 
-	// Create camera
+	// カメラを作成する
 	mainCam = new Camera(XMVectorSet(0.0f, 0.0f, 5.0f, 0), XMQuaternionIdentity());
 
-	// FloorLevel will give tracking poses where the floor height is 0
+	// FloorLevelは、床の高さが0の場所を追跡する
 	ovr_SetTrackingOriginType(session, ovrTrackingOrigin_FloorLevel);
 
-	// Main loop
+	// メインループ
 	while (DIRECTX.HandleMessages())
 	{
 		ovrSessionStatus sessionStatus;
 		ovr_GetSessionStatus(session, &sessionStatus);
 		if (sessionStatus.ShouldQuit)
 		{
-			// Because the application is requested to quit, should not request retry
+			// アプリケーションは終了を要求されているため、再試行を要求しないでください
 			retryCreate = false;
 			break;
 		}
@@ -268,40 +267,40 @@ static bool MainLoop(bool retryCreate)
 			if (DIRECTX.Key[VK_LEFT])  mainCam->Rot = XMQuaternionRotationRollPitchYaw(0, Yaw += 0.02f, 0);
 			if (DIRECTX.Key[VK_RIGHT]) mainCam->Rot = XMQuaternionRotationRollPitchYaw(0, Yaw -= 0.02f, 0);
 
-			// Animate the cube
+			// キューブをアニメートする
 			static float cubePositionClock = 0;
-			if (sessionStatus.HasInputFocus) // Pause the application if we are not supposed to have input.
+			if (sessionStatus.HasInputFocus) // 入力がないと思われる場合は、アプリケーションを一時停止します。
 				roomScene->Models[0]->Pos = XMFLOAT3(9 * sin(cubePositionClock), 3, 9 * cos(cubePositionClock += 0.015f));
 
-			// Call ovr_GetRenderDesc each frame to get the ovrEyeRenderDesc, as the returned values (e.g. HmdToEyePose) may change at runtime.
+			// 実行時に返される値（HmdToEyePoseなど）が変更される可能性があるため、ovrEyeRenderDescを取得するには、各フレームをovr_GetRenderDescで呼び出します。
 			ovrEyeRenderDesc eyeRenderDesc[2];
 			eyeRenderDesc[0] = ovr_GetRenderDesc(session, ovrEye_Left, hmdDesc.DefaultEyeFov[0]);
 			eyeRenderDesc[1] = ovr_GetRenderDesc(session, ovrEye_Right, hmdDesc.DefaultEyeFov[1]);
 
-			// Get both eye poses simultaneously, with IPD offset already included. 
+			// 両方のアイポーズを同時に取得し、IPDオフセットは既に含まれています。
 			ovrPosef EyeRenderPose[2];
 			ovrPosef HmdToEyePose[2] = { eyeRenderDesc[0].HmdToEyePose,
 										 eyeRenderDesc[1].HmdToEyePose };
 
-			double sensorSampleTime;    // sensorSampleTime is fed into the layer later
+			double sensorSampleTime;    // sensorSampleTimeは後でレイヤーに供給される
 			ovr_GetEyePoses(session, frameIndex, ovrTrue, HmdToEyePose, EyeRenderPose, &sensorSampleTime);
 
 			ovrTimewarpProjectionDesc posTimewarpProjectionDesc = {};
 
-			// Render Scene to Eye Buffers
+			// シーンをアイバッファにレンダリングする
 			for (int eye = 0; eye < 2; ++eye)
 			{
-				// Clear and set up rendertarget
+				// レンダリングターゲットを削除して設定する
 				DIRECTX.SetAndClearRenderTarget(pEyeRenderTexture[eye]->GetRTV(), pEyeRenderTexture[eye]->GetDSV());
 				DIRECTX.SetViewport((float)eyeRenderViewport[eye].Pos.x, (float)eyeRenderViewport[eye].Pos.y,
 					(float)eyeRenderViewport[eye].Size.w, (float)eyeRenderViewport[eye].Size.h);
 
-				//Get the pose information in XM format
+				// ポーズ情報をXM形式で取得する
 				XMVECTOR eyeQuat = XMVectorSet(EyeRenderPose[eye].Orientation.x, EyeRenderPose[eye].Orientation.y,
 					EyeRenderPose[eye].Orientation.z, EyeRenderPose[eye].Orientation.w);
 				XMVECTOR eyePos = XMVectorSet(EyeRenderPose[eye].Position.x, EyeRenderPose[eye].Position.y, EyeRenderPose[eye].Position.z, 0);
 
-				// Get view and projection matrices for the Rift camera
+				// リフトカメラのビュー行列と投影行列を取得する
 				XMVECTOR CombinedPos = XMVectorAdd(mainCam->Pos, XMVector3Rotate(eyePos, mainCam->Rot));
 				Camera finalCam(CombinedPos, XMQuaternionMultiply(eyeQuat, mainCam->Rot));
 				XMMATRIX view = finalCam.GetViewMatrix();
@@ -314,11 +313,11 @@ static bool MainLoop(bool retryCreate)
 				XMMATRIX prod = XMMatrixMultiply(view, proj);
 				roomScene->Render(&prod, 1, 1, 1, 1, true);
 
-				// Commit rendering to the swap chain
+				// スワップチェーンへのコミットの取得
 				pEyeRenderTexture[eye]->Commit();
 			}
 
-			// Initialize our single full screen Fov layer.
+			// 単一のフルスクリーンFovレイヤーを初期化します。
 			ovrLayerEyeFovDepth ld = {};
 			ld.Header.Type = ovrLayerType_EyeFovDepth;
 			ld.Header.Flags = 0;
@@ -336,14 +335,14 @@ static bool MainLoop(bool retryCreate)
 
 			ovrLayerHeader* layers = &ld.Header;
 			result = ovr_SubmitFrame(session, frameIndex, nullptr, &layers, 1);
-			// exit the rendering loop if submit returns an error, will retry on ovrError_DisplayLost
+			// submitがエラーを返した場合はレンダリングループを終了し、ovrError_DisplayLostを再試行します。
 			if (!OVR_SUCCESS(result))
 				goto Done;
 
 			frameIndex++;
 		}
 
-		// Render mirror
+		// レンダーミラー
 		ID3D11Texture2D* tex = nullptr;
 		ovr_GetMirrorTextureBufferDX(session, mirrorTexture, IID_PPV_ARGS(&tex));
 
@@ -353,7 +352,7 @@ static bool MainLoop(bool retryCreate)
 
 	}
 
-	// Release resources
+	// 解放
 Done:
 	delete mainCam;
 	delete roomScene;
@@ -366,19 +365,19 @@ Done:
 	DIRECTX.ReleaseDevice();
 	ovr_Destroy(session);
 
-	// Retry on ovrError_DisplayLost
+	// ovrError_DisplayLostで再試行
 	return retryCreate || (result == ovrError_DisplayLost);
 }
 
 //-------------------------------------------------------------------------------------
 int WINAPI WinMain(HINSTANCE hinst, HINSTANCE, LPSTR, int)
 {
-	// Initializes LibOVR, and the Rift
+	// LibOVRとRiftを初期化する
 	ovrInitParams initParams = { ovrInit_RequestVersion | ovrInit_FocusAware, OVR_MINOR_VERSION, NULL, 0, 0 };
 	ovrResult result = ovr_Initialize(&initParams);
 	VALIDATE(OVR_SUCCESS(result), "Failed to initialize libOVR.");
 
-	VALIDATE(DIRECTX.InitWindow(hinst, L"Oculus Room Tiny (DX11)"), "Failed to open window.");
+	VALIDATE(DIRECTX.InitWindow(hinst, L"VRTest"), "Failed to open window.");
 
 	DIRECTX.Run(MainLoop);
 
