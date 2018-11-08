@@ -184,6 +184,10 @@ static bool MainLoop(bool retryCreate)
 	long long frameIndex = 0;
 	int msaaRate = 4;
 
+	// ----------------------------------
+	Model * controller = nullptr;
+	TriangleSet cube;
+
 	ovrSession session;
 	ovrGraphicsLuid luid;
 	ovrResult result = ovr_Create(&session, &luid);
@@ -241,6 +245,10 @@ static bool MainLoop(bool retryCreate)
 	// FloorLevelは、床の高さが0の場所を追跡する
 	ovr_SetTrackingOriginType(session, ovrTrackingOrigin_FloorLevel);
 
+	// 左側のコントローラを表す簡単なモデルを作成する
+	cube.AddSolidColorBox(0.05f, -0.05f, 0.05f, -0.05f, 0.05f, -0.05f, 0xff404040);
+	controller = new Model(&cube, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1), new Material(new Texture(false, 256, 256, Texture::AUTO_CEILING)));
+
 	// メインループ
 	while (DIRECTX.HandleMessages())
 	{
@@ -287,6 +295,20 @@ static bool MainLoop(bool retryCreate)
 
 			ovrTimewarpProjectionDesc posTimewarpProjectionDesc = {};
 
+			// ---------------------------------------------------------
+			// コントローラーモデルに位置と方向を書き込む。
+			controller->Pos = XMFLOAT3(XMVectorGetX(mainCam->Pos) + EyeRenderPose[ovrHand_Left].Position.x,
+				XMVectorGetY(mainCam->Pos) + EyeRenderPose[ovrHand_Left].Position.y,
+				XMVectorGetZ(mainCam->Pos) + EyeRenderPose[ovrHand_Left].Position.z);
+			controller->Rot = XMFLOAT4(EyeRenderPose[ovrHand_Left].Orientation.x,
+				EyeRenderPose[ovrHand_Left].Orientation.y,
+				EyeRenderPose[ovrHand_Left].Orientation.z,
+				EyeRenderPose[ovrHand_Left].Orientation.w);
+
+			// 操作情報
+			ovrInputState inputState;
+			ovr_GetInputState(session, ovrControllerType_Touch, &inputState);
+
 			// シーンをアイバッファにレンダリングする
 			for (int eye = 0; eye < 2; ++eye)
 			{
@@ -315,6 +337,12 @@ static bool MainLoop(bool retryCreate)
 
 				// スワップチェーンへのコミットの取得
 				pEyeRenderTexture[eye]->Commit();
+
+
+				// -------------------------------------------
+				// コントローラモデルをレンダリングする
+				controller->Render(&prod, 1, inputState.Buttons & ovrTouch_X ? 1.0f : 0.0f,
+											inputState.Buttons & ovrTouch_Y ? 1.0f : 0.0f, 1, true);
 			}
 
 			// 単一のフルスクリーンFovレイヤーを初期化します。

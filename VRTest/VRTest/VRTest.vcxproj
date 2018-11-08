@@ -143,7 +143,7 @@
       </SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>false</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\Documents\GitHubRip\OcuRiftSetUp\VRTest\LibOVR\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\Documents\GitHubRip\OcuRiftSetUp\VRTest\LibOVR\Include;E:\ovr_sdk_win_1.19.0_public\OculusSDK\Samples\OculusRoomTiny_Advanced\Common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>OldStyle</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
