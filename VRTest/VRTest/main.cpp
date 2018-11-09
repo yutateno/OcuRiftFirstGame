@@ -1,9 +1,9 @@
 ﻿/************************************************************************************
 Filename    :   Win32_RoomTiny_Main.cpp
 Content     :   First-person view test application for Oculus Rift
-Created     :   11th May 2015
+Created     :   18th Dec 2014
 Authors     :   Tom Heath
-Copyright   :   Copyright 2015 Oculus, Inc. All Rights reserved.
+Copyright   :   Copyright 2012 Oculus, Inc. All Rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,398 +17,132 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 *************************************************************************************/
-/// This is an entry-level sample, showing a minimal VR sample, 
-/// in a simple environment.  Use WASD keys to move around, and cursor keys.
-/// Dismiss the health and safety warning by tapping the headset, 
-/// or pressing any key. 
-/// It runs with DirectX11.
+/// This is the same sample as OculusRoomTiny(DX11), 
+/// but this time using the standard set of 
+/// utility functions provided in BasicVR.h - these functions we will be
+/// used in subsequent samples.
 
-// directxによるウィンドウ作成
-#include "Win32_DirectXAppUtil.h"
+#include "../Common/Win32_DirectXAppUtil.h" // DirectX
+#include "../Common/Win32_BasicVR.h"        // Basic VR
+#include "../Common/Win32_CameraCone.h" // Camera cone
 
-// oculus sdkのインクルード
-#include "OVR_CAPI_D3D.h"
-
-
-//------------------------------------------------------------
-// ovrSwapTextureSetラッパークラスで、D3D11レンダリングに必要なレンダーターゲットビュー
-struct OculusTexture
+struct UsingBasicVR : BasicVR
 {
-	ovrSession               Session;
-	ovrTextureSwapChain      TextureChain;
-	ovrTextureSwapChain      DepthTextureChain;
-	std::vector<ID3D11RenderTargetView*> TexRtv;
-	std::vector<ID3D11DepthStencilView*> TexDsv;
+	UsingBasicVR(HINSTANCE hinst) : BasicVR(hinst, L"VRTest") {}
 
-	OculusTexture() :
-		Session(nullptr),
-		TextureChain(nullptr),
-		DepthTextureChain(nullptr)
+	void MainLoop()
 	{
-	}
+		Layer[0] = new VRLayer(Session);
 
-	bool Init(ovrSession session, int sizeW, int sizeH, int sampleCount, bool createDepth)
-	{
-		Session = session;
+		CameraCone cameraCone(this);
 
-		// 最初にカラーテクスチャスワップチェーンを作成する
+
+		// Create a trivial model to represent the left controller
+		TriangleSet cube;
+		cube.AddSolidColorBox(0.05f, -0.05f, 0.05f, -0.05f, 0.05f, -0.05f, 0xff404040);
+		Model * controllerL = new Model(&cube, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1), new Material(new Texture(false, 256, 256, Texture::AUTO_CEILING)));
+		Model * controllerR = new Model(&cube, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1), new Material(new Texture(false, 256, 256, Texture::AUTO_CEILING)));
+
+		TriangleSet testCube;
+		testCube.AddSolidColorBox(1.4f, 1.1f, -20.0f, 0.1f, 0.0f, -20.1f, 0xff505050); // Right Bars)
+		Model* testModel=new Model(&testCube, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1), new Material(new Texture(false, 256, 256, Texture::AUTO_CEILING)));
+
+		TriangleSet testBlock;
+		testBlock.AddSolidColorBox(1.85f, 0.95f, 1.85f, 1.75f, 1.05f, 1.75f, 0xff404040); // Right Bars)
+		Model* testBlockModel = new Model(&testBlock, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1), new Material(new Texture(false, 256, 256, Texture::AUTO_CEILING)));
+
+		float red = 0.0f;
+		XMFLOAT3 blockArea(1.8f, 1.0f, 1.8f);
+
+		XMFLOAT3 preRightPos;
+
+		while (HandleMessages())
 		{
-			ovrTextureSwapChainDesc desc = {};
-			desc.Type = ovrTexture_2D;
-			desc.ArraySize = 1;
-			desc.Width = sizeW;
-			desc.Height = sizeH;
-			desc.MipLevels = 1;
-			desc.SampleCount = sampleCount;
-			desc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
-			desc.MiscFlags = ovrTextureMisc_DX_Typeless | ovrTextureMisc_AutoGenerateMips;
-			desc.BindFlags = ovrTextureBind_DX_RenderTarget;
-			desc.StaticImage = ovrFalse;
+			// We don't allow yaw change for now, as this sample is too simple to cater for it.
+			ActionFromInput(0.0f, false, true);
+			ovrTrackingState hmdState = Layer[0]->GetEyePoses();
+			ovrTrackerPose   trackerPose = ovr_GetTrackerPose(Session, 0);
 
-			ovrResult result = ovr_CreateTextureSwapChainDX(session, DIRECTX.Device, &desc, &TextureChain);
-			if (!OVR_SUCCESS(result))
-				return false;
+			//Write position and orientation into controller models.
+			controllerL->Pos = XMFLOAT3(XMVectorGetX(MainCam->Pos) + hmdState.HandPoses[ovrHand_Left].ThePose.Position.x,
+				XMVectorGetY(MainCam->Pos) + hmdState.HandPoses[ovrHand_Left].ThePose.Position.y,
+				XMVectorGetZ(MainCam->Pos) + hmdState.HandPoses[ovrHand_Left].ThePose.Position.z);
+			controllerL->Rot = XMFLOAT4(hmdState.HandPoses[ovrHand_Left].ThePose.Orientation.x,
+				hmdState.HandPoses[ovrHand_Left].ThePose.Orientation.y,
+				hmdState.HandPoses[ovrHand_Left].ThePose.Orientation.z,
+				hmdState.HandPoses[ovrHand_Left].ThePose.Orientation.w);
+			controllerR->Pos = XMFLOAT3(XMVectorGetX(MainCam->Pos) + hmdState.HandPoses[ovrHand_Right].ThePose.Position.x,
+				XMVectorGetY(MainCam->Pos) + hmdState.HandPoses[ovrHand_Right].ThePose.Position.y,
+				XMVectorGetZ(MainCam->Pos) + hmdState.HandPoses[ovrHand_Right].ThePose.Position.z);
+			controllerR->Rot = XMFLOAT4(hmdState.HandPoses[ovrHand_Right].ThePose.Orientation.x,
+				hmdState.HandPoses[ovrHand_Right].ThePose.Orientation.y,
+				hmdState.HandPoses[ovrHand_Right].ThePose.Orientation.z,
+				hmdState.HandPoses[ovrHand_Right].ThePose.Orientation.w);
 
-			int textureCount = 0;
-			ovr_GetTextureSwapChainLength(Session, TextureChain, &textureCount);
-			for (int i = 0; i < textureCount; ++i)
+			//Button presses are modifying the colour of the controller model below
+			ovrInputState inputState;
+			ovr_GetInputState(Session, ovrControllerType_Touch, &inputState);
+
+			///		this->MainCam->Pos = initialPos = controllerL->Pos;
+
+			// Some auxiliary controls we're going to read from the remote. 
+			XMVECTOR forward = XMVector3Rotate(XMVectorSet(0, 0, -0.05f, 0), MainCam->Rot);
+			XMVECTOR right = XMVector3Rotate(XMVectorSet(0.05f, 0, 0, 0), MainCam->Rot);
+
+			if (inputState.Thumbstick[ovrHand_Left].y > 0.5f) MainCam->Pos = XMVectorAdd(MainCam->Pos, forward);
+			if (inputState.Thumbstick[ovrHand_Left].y < -0.5f) MainCam->Pos = XMVectorSubtract(MainCam->Pos, forward);
+			if (inputState.Thumbstick[ovrHand_Left].x < -0.5f) MainCam->Pos = XMVectorSubtract(MainCam->Pos, right);
+			if (inputState.Thumbstick[ovrHand_Left].x > 0.5f) MainCam->Pos = XMVectorAdd(MainCam->Pos, right);
+
+			// 右手とブロックがほぼ重なってトリガーを押したら
+			if (inputState.HandTrigger[ovrHand_Right] > 0.5f
+				&& controllerR->Pos.x > testBlockModel->Pos.x + blockArea.x - 0.1f
+				&& controllerR->Pos.x < testBlockModel->Pos.x + blockArea.x + 0.1f
+				&& controllerR->Pos.y > testBlockModel->Pos.y + blockArea.y - 0.1f
+				&& controllerR->Pos.y < testBlockModel->Pos.y + blockArea.y + 0.1f
+				&& controllerR->Pos.z > testBlockModel->Pos.z + blockArea.z - 0.1f
+				&& controllerR->Pos.z < testBlockModel->Pos.z + blockArea.z + 0.1f)
 			{
-				ID3D11Texture2D* tex = nullptr;
-				ovr_GetTextureSwapChainBufferDX(Session, TextureChain, i, IID_PPV_ARGS(&tex));
-
-				D3D11_RENDER_TARGET_VIEW_DESC rtvd = {};
-				rtvd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-				rtvd.ViewDimension = (sampleCount > 1) ? D3D11_RTV_DIMENSION_TEXTURE2DMS
-					: D3D11_RTV_DIMENSION_TEXTURE2D;
-				ID3D11RenderTargetView* rtv;
-				HRESULT hr = DIRECTX.Device->CreateRenderTargetView(tex, &rtvd, &rtv);
-				VALIDATE((hr == ERROR_SUCCESS), "Error creating render target view");
-				TexRtv.push_back(rtv);
-				tex->Release();
+				testBlockModel->Pos.x += (controllerR->Pos.x - preRightPos.x);
+				testBlockModel->Pos.y += (controllerR->Pos.y - preRightPos.y);
+				testBlockModel->Pos.z += (controllerR->Pos.z - preRightPos.z);
+				red = 1.0f;
 			}
-		}
+			else red = 0.0f;
 
-		// 要求された場合、深度スワップチェーンを作成する
-		if (createDepth)
-		{
-			ovrTextureSwapChainDesc desc = {};
-			desc.Type = ovrTexture_2D;
-			desc.ArraySize = 1;
-			desc.Width = sizeW;
-			desc.Height = sizeH;
-			desc.MipLevels = 1;
-			desc.SampleCount = sampleCount;
-			desc.Format = OVR_FORMAT_D32_FLOAT;
-			desc.MiscFlags = ovrTextureMisc_None;
-			desc.BindFlags = ovrTextureBind_DX_DepthStencil;
-			desc.StaticImage = ovrFalse;
-
-			ovrResult result = ovr_CreateTextureSwapChainDX(session, DIRECTX.Device, &desc, &DepthTextureChain);
-			if (!OVR_SUCCESS(result))
-				return false;
-
-			int textureCount = 0;
-			ovr_GetTextureSwapChainLength(Session, DepthTextureChain, &textureCount);
-			for (int i = 0; i < textureCount; ++i)
+			
+			for (int eye = 0; eye < 2; ++eye)
 			{
-				ID3D11Texture2D* tex = nullptr;
-				ovr_GetTextureSwapChainBufferDX(Session, DepthTextureChain, i, IID_PPV_ARGS(&tex));
+				XMMATRIX viewProj = Layer[0]->RenderSceneToEyeBuffer(MainCam, RoomScene, eye);
 
-				D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-				dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
-				dsvDesc.ViewDimension = (sampleCount > 1) ? D3D11_DSV_DIMENSION_TEXTURE2DMS
-					: D3D11_DSV_DIMENSION_TEXTURE2D;
-				dsvDesc.Texture2D.MipSlice = 0;
+				// コントローラーのモデルを描画
+				controllerL->Render(&viewProj, 1, inputState.Buttons & ovrTouch_X ? 1.0f : 0.0f,
+					inputState.Buttons & ovrTouch_Y ? 1.0f : 0.0f, 1, true);
+				controllerR->Render(&viewProj, 1, inputState.Buttons & ovrTouch_A ? 1.0f : 0.0f,
+					inputState.Buttons & ovrTouch_B ? 1.0f : 0.0f, 1, true);
 
-				ID3D11DepthStencilView* dsv;
-				HRESULT hr = DIRECTX.Device->CreateDepthStencilView(tex, &dsvDesc, &dsv);
-				VALIDATE((hr == ERROR_SUCCESS), "Error creating depth stencil view");
-				TexDsv.push_back(dsv);
-				tex->Release();
+				// テスト用のモデルを描画
+				testModel->Render(&viewProj, 1, red, 0.0f, 1, true);
+				testBlockModel->Render(&viewProj, 1, red, 0.0f, 1, true);
 			}
-		}
 
-		return true;
-	}
+			// 直前の右手の位置
+			preRightPos = controllerR->Pos;
 
-	~OculusTexture()
-	{
-		for (int i = 0; i < (int)TexRtv.size(); ++i)
-		{
-			Release(TexRtv[i]);
+			Layer[0]->PrepareLayerHeader();
+			DistortAndPresent(1);
 		}
-		for (int i = 0; i < (int)TexDsv.size(); ++i)
-		{
-			Release(TexDsv[i]);
-		}
-		if (TextureChain)
-		{
-			ovr_DestroyTextureSwapChain(Session, TextureChain);
-		}
-		if (DepthTextureChain)
-		{
-			ovr_DestroyTextureSwapChain(Session, DepthTextureChain);
-		}
-	}
-
-	ID3D11RenderTargetView* GetRTV()
-	{
-		int index = 0;
-		ovr_GetTextureSwapChainCurrentIndex(Session, TextureChain, &index);
-		return TexRtv[index];
-	}
-	ID3D11DepthStencilView* GetDSV()
-	{
-		int index = 0;
-		ovr_GetTextureSwapChainCurrentIndex(Session, DepthTextureChain, &index);
-		return TexDsv[index];
-	}
-
-	// 変更をコミットする
-	void Commit()
-	{
-		ovr_CommitTextureSwapChain(Session, TextureChain);
-		ovr_CommitTextureSwapChain(Session, DepthTextureChain);
+		
+		delete testBlockModel;
+		delete testModel;
+		delete controllerL;
+		delete controllerR;
 	}
 };
-
-// 後で再試行するためにtrueを返します（たとえば、表示が失われた後
-static bool MainLoop(bool retryCreate)
-{
-	// これらをnullptrに初期化して、デバイスの失われた障害をきれいに処理する
-	ovrMirrorTexture mirrorTexture = nullptr;
-	OculusTexture  * pEyeRenderTexture[2] = { nullptr, nullptr };
-	Scene          * roomScene = nullptr;
-	Camera         * mainCam = nullptr;
-	ovrMirrorTextureDesc mirrorDesc = {};
-	long long frameIndex = 0;
-	int msaaRate = 4;
-
-	// ----------------------------------
-	Model * controller = nullptr;
-	TriangleSet cube;
-
-	ovrSession session;
-	ovrGraphicsLuid luid;
-	ovrResult result = ovr_Create(&session, &luid);
-	if (!OVR_SUCCESS(result))
-		return retryCreate;
-
-	ovrHmdDesc hmdDesc = ovr_GetHmdDesc(session);
-
-	// デバイスとグラフィックのセットアップ
-	// 注：ミラーウィンドウは任意のサイズにすることができます。このサンプルでは、​​HMD解像度の1/2を使用します
-	if (!DIRECTX.InitDevice(hmdDesc.Resolution.w / 2, hmdDesc.Resolution.h / 2, reinterpret_cast<LUID*>(&luid)))
-		goto Done;
-
-	// 目をバッファに描画させます（実際のサイズ<HWの制限のために要求された場合は注意してください）。 
-	ovrRecti         eyeRenderViewport[2];
-
-	for (int eye = 0; eye < 2; ++eye)
-	{
-		ovrSizei idealSize = ovr_GetFovTextureSize(session, (ovrEyeType)eye, hmdDesc.DefaultEyeFov[eye], 1.0f);
-		pEyeRenderTexture[eye] = new OculusTexture();
-		if (!pEyeRenderTexture[eye]->Init(session, idealSize.w, idealSize.h, msaaRate, true))
-		{
-			if (retryCreate) goto Done;
-			FATALERROR("Failed to create eye texture.");
-		}
-		eyeRenderViewport[eye].Pos.x = 0;
-		eyeRenderViewport[eye].Pos.y = 0;
-		eyeRenderViewport[eye].Size = idealSize;
-		if (!pEyeRenderTexture[eye]->TextureChain || !pEyeRenderTexture[eye]->DepthTextureChain)
-		{
-			if (retryCreate) goto Done;
-			FATALERROR("Failed to create texture.");
-		}
-	}
-
-	// モニター上に表示するミラーを作成します。
-	mirrorDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
-	mirrorDesc.Width = DIRECTX.WinSizeW;
-	mirrorDesc.Height = DIRECTX.WinSizeH;
-	mirrorDesc.MirrorOptions = ovrMirrorOption_Default;
-	result = ovr_CreateMirrorTextureWithOptionsDX(session, DIRECTX.Device, &mirrorDesc, &mirrorTexture);
-
-	if (!OVR_SUCCESS(result))
-	{
-		if (retryCreate) goto Done;
-		FATALERROR("Failed to create mirror texture.");
-	}
-
-	// ルームモデルを作成する
-	roomScene = new Scene(false);
-
-	// カメラを作成する
-	mainCam = new Camera(XMVectorSet(0.0f, 0.0f, 5.0f, 0), XMQuaternionIdentity());
-
-	// FloorLevelは、床の高さが0の場所を追跡する
-	ovr_SetTrackingOriginType(session, ovrTrackingOrigin_FloorLevel);
-
-	// 左側のコントローラを表す簡単なモデルを作成する
-	cube.AddSolidColorBox(0.05f, -0.05f, 0.05f, -0.05f, 0.05f, -0.05f, 0xff404040);
-	controller = new Model(&cube, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1), new Material(new Texture(false, 256, 256, Texture::AUTO_CEILING)));
-
-	// メインループ
-	while (DIRECTX.HandleMessages())
-	{
-		ovrSessionStatus sessionStatus;
-		ovr_GetSessionStatus(session, &sessionStatus);
-		if (sessionStatus.ShouldQuit)
-		{
-			// アプリケーションは終了を要求されているため、再試行を要求しないでください
-			retryCreate = false;
-			break;
-		}
-		if (sessionStatus.ShouldRecenter)
-			ovr_RecenterTrackingOrigin(session);
-
-		if (sessionStatus.IsVisible)
-		{
-			XMVECTOR forward = XMVector3Rotate(XMVectorSet(0, 0, -0.05f, 0), mainCam->Rot);
-			XMVECTOR right = XMVector3Rotate(XMVectorSet(0.05f, 0, 0, 0), mainCam->Rot);
-			if (DIRECTX.Key['W'] || DIRECTX.Key[VK_UP])      mainCam->Pos = XMVectorAdd(mainCam->Pos, forward);
-			if (DIRECTX.Key['S'] || DIRECTX.Key[VK_DOWN])    mainCam->Pos = XMVectorSubtract(mainCam->Pos, forward);
-			if (DIRECTX.Key['D'])                            mainCam->Pos = XMVectorAdd(mainCam->Pos, right);
-			if (DIRECTX.Key['A'])                            mainCam->Pos = XMVectorSubtract(mainCam->Pos, right);
-			static float Yaw = 0;
-			if (DIRECTX.Key[VK_LEFT])  mainCam->Rot = XMQuaternionRotationRollPitchYaw(0, Yaw += 0.02f, 0);
-			if (DIRECTX.Key[VK_RIGHT]) mainCam->Rot = XMQuaternionRotationRollPitchYaw(0, Yaw -= 0.02f, 0);
-
-			// キューブをアニメートする
-			static float cubePositionClock = 0;
-			if (sessionStatus.HasInputFocus) // 入力がないと思われる場合は、アプリケーションを一時停止します。
-				roomScene->Models[0]->Pos = XMFLOAT3(9 * sin(cubePositionClock), 3, 9 * cos(cubePositionClock += 0.015f));
-
-			// 実行時に返される値（HmdToEyePoseなど）が変更される可能性があるため、ovrEyeRenderDescを取得するには、各フレームをovr_GetRenderDescで呼び出します。
-			ovrEyeRenderDesc eyeRenderDesc[2];
-			eyeRenderDesc[0] = ovr_GetRenderDesc(session, ovrEye_Left, hmdDesc.DefaultEyeFov[0]);
-			eyeRenderDesc[1] = ovr_GetRenderDesc(session, ovrEye_Right, hmdDesc.DefaultEyeFov[1]);
-
-			// 両方のアイポーズを同時に取得し、IPDオフセットは既に含まれています。
-			ovrPosef EyeRenderPose[2];
-			ovrPosef HmdToEyePose[2] = { eyeRenderDesc[0].HmdToEyePose,
-										 eyeRenderDesc[1].HmdToEyePose };
-
-			double sensorSampleTime;    // sensorSampleTimeは後でレイヤーに供給される
-			ovr_GetEyePoses(session, frameIndex, ovrTrue, HmdToEyePose, EyeRenderPose, &sensorSampleTime);
-
-			ovrTimewarpProjectionDesc posTimewarpProjectionDesc = {};
-
-			// ---------------------------------------------------------
-			// コントローラーモデルに位置と方向を書き込む。
-			controller->Pos = XMFLOAT3(XMVectorGetX(mainCam->Pos) + EyeRenderPose[ovrHand_Left].Position.x,
-				XMVectorGetY(mainCam->Pos) + EyeRenderPose[ovrHand_Left].Position.y,
-				XMVectorGetZ(mainCam->Pos) + EyeRenderPose[ovrHand_Left].Position.z);
-			controller->Rot = XMFLOAT4(EyeRenderPose[ovrHand_Left].Orientation.x,
-				EyeRenderPose[ovrHand_Left].Orientation.y,
-				EyeRenderPose[ovrHand_Left].Orientation.z,
-				EyeRenderPose[ovrHand_Left].Orientation.w);
-
-			// 操作情報
-			ovrInputState inputState;
-			ovr_GetInputState(session, ovrControllerType_Touch, &inputState);
-
-			// シーンをアイバッファにレンダリングする
-			for (int eye = 0; eye < 2; ++eye)
-			{
-				// レンダリングターゲットを削除して設定する
-				DIRECTX.SetAndClearRenderTarget(pEyeRenderTexture[eye]->GetRTV(), pEyeRenderTexture[eye]->GetDSV());
-				DIRECTX.SetViewport((float)eyeRenderViewport[eye].Pos.x, (float)eyeRenderViewport[eye].Pos.y,
-					(float)eyeRenderViewport[eye].Size.w, (float)eyeRenderViewport[eye].Size.h);
-
-				// ポーズ情報をXM形式で取得する
-				XMVECTOR eyeQuat = XMVectorSet(EyeRenderPose[eye].Orientation.x, EyeRenderPose[eye].Orientation.y,
-					EyeRenderPose[eye].Orientation.z, EyeRenderPose[eye].Orientation.w);
-				XMVECTOR eyePos = XMVectorSet(EyeRenderPose[eye].Position.x, EyeRenderPose[eye].Position.y, EyeRenderPose[eye].Position.z, 0);
-
-				// リフトカメラのビュー行列と投影行列を取得する
-				XMVECTOR CombinedPos = XMVectorAdd(mainCam->Pos, XMVector3Rotate(eyePos, mainCam->Rot));
-				Camera finalCam(CombinedPos, XMQuaternionMultiply(eyeQuat, mainCam->Rot));
-				XMMATRIX view = finalCam.GetViewMatrix();
-				ovrMatrix4f p = ovrMatrix4f_Projection(eyeRenderDesc[eye].Fov, 0.2f, 1000.0f, ovrProjection_None);
-				posTimewarpProjectionDesc = ovrTimewarpProjectionDesc_FromProjection(p, ovrProjection_None);
-				XMMATRIX proj = XMMatrixSet(p.M[0][0], p.M[1][0], p.M[2][0], p.M[3][0],
-					p.M[0][1], p.M[1][1], p.M[2][1], p.M[3][1],
-					p.M[0][2], p.M[1][2], p.M[2][2], p.M[3][2],
-					p.M[0][3], p.M[1][3], p.M[2][3], p.M[3][3]);
-				XMMATRIX prod = XMMatrixMultiply(view, proj);
-				roomScene->Render(&prod, 1, 1, 1, 1, true);
-
-				// スワップチェーンへのコミットの取得
-				pEyeRenderTexture[eye]->Commit();
-
-
-				// -------------------------------------------
-				// コントローラモデルをレンダリングする
-				controller->Render(&prod, 1, inputState.Buttons & ovrTouch_X ? 1.0f : 0.0f,
-											inputState.Buttons & ovrTouch_Y ? 1.0f : 0.0f, 1, true);
-			}
-
-			// 単一のフルスクリーンFovレイヤーを初期化します。
-			ovrLayerEyeFovDepth ld = {};
-			ld.Header.Type = ovrLayerType_EyeFovDepth;
-			ld.Header.Flags = 0;
-			ld.ProjectionDesc = posTimewarpProjectionDesc;
-
-			for (int eye = 0; eye < 2; ++eye)
-			{
-				ld.ColorTexture[eye] = pEyeRenderTexture[eye]->TextureChain;
-				ld.DepthTexture[eye] = pEyeRenderTexture[eye]->DepthTextureChain;
-				ld.Viewport[eye] = eyeRenderViewport[eye];
-				ld.Fov[eye] = hmdDesc.DefaultEyeFov[eye];
-				ld.RenderPose[eye] = EyeRenderPose[eye];
-				ld.SensorSampleTime = sensorSampleTime;
-			}
-
-			ovrLayerHeader* layers = &ld.Header;
-			result = ovr_SubmitFrame(session, frameIndex, nullptr, &layers, 1);
-			// submitがエラーを返した場合はレンダリングループを終了し、ovrError_DisplayLostを再試行します。
-			if (!OVR_SUCCESS(result))
-				goto Done;
-
-			frameIndex++;
-		}
-
-		// レンダーミラー
-		ID3D11Texture2D* tex = nullptr;
-		ovr_GetMirrorTextureBufferDX(session, mirrorTexture, IID_PPV_ARGS(&tex));
-
-		DIRECTX.Context->CopyResource(DIRECTX.BackBuffer, tex);
-		tex->Release();
-		DIRECTX.SwapChain->Present(0, 0);
-
-	}
-
-	// 解放
-Done:
-	delete mainCam;
-	delete roomScene;
-	if (mirrorTexture)
-		ovr_DestroyMirrorTexture(session, mirrorTexture);
-	for (int eye = 0; eye < 2; ++eye)
-	{
-		delete pEyeRenderTexture[eye];
-	}
-	DIRECTX.ReleaseDevice();
-	ovr_Destroy(session);
-
-	// ovrError_DisplayLostで再試行
-	return retryCreate || (result == ovrError_DisplayLost);
-}
 
 //-------------------------------------------------------------------------------------
 int WINAPI WinMain(HINSTANCE hinst, HINSTANCE, LPSTR, int)
 {
-	// LibOVRとRiftを初期化する
-	ovrInitParams initParams = { ovrInit_RequestVersion | ovrInit_FocusAware, OVR_MINOR_VERSION, NULL, 0, 0 };
-	ovrResult result = ovr_Initialize(&initParams);
-	VALIDATE(OVR_SUCCESS(result), "Failed to initialize libOVR.");
-
-	VALIDATE(DIRECTX.InitWindow(hinst, L"VRTest"), "Failed to open window.");
-
-	DIRECTX.Run(MainLoop);
-
-	ovr_Shutdown();
-	return(0);
+	UsingBasicVR app(hinst);
+	return app.Run();
 }
