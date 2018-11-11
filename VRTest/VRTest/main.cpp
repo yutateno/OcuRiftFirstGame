@@ -48,13 +48,14 @@ struct UsingBasicVR : BasicVR
 		Model* testModel=new Model(&testCube, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1), new Material(new Texture(false, 256, 256, Texture::AUTO_CEILING)));
 
 		TriangleSet testBlock;
-		testBlock.AddSolidColorBox(1.85f, 0.95f, 1.85f, 1.75f, 1.05f, 1.75f, 0xff404040); // Right Bars)
-		Model* testBlockModel = new Model(&testBlock, XMFLOAT3(0, 0, 0), XMFLOAT4(0, 0, 0, 1), new Material(new Texture(false, 256, 256, Texture::AUTO_CEILING)));
+		XMFLOAT3 blockArea(1.8f, 1.0f, 1.8f);
+		testBlock.AddSolidColorBox(0.05f, -0.05f, 0.05f, -0.05f, 0.05f, -0.05f, 0xff404040); // Right Bars)
+		Model* testBlockModel = new Model(&testBlock, blockArea, XMFLOAT4(0, 0, 0, 1), new Material(new Texture(false, 256, 256, Texture::AUTO_CEILING)));
 
 		float red = 0.0f;
-		XMFLOAT3 blockArea(1.8f, 1.0f, 1.8f);
 
 		XMFLOAT3 preRightPos;
+		XMFLOAT4 preRightRot;
 
 		while (HandleMessages())
 		{
@@ -71,6 +72,7 @@ struct UsingBasicVR : BasicVR
 				hmdState.HandPoses[ovrHand_Left].ThePose.Orientation.y,
 				hmdState.HandPoses[ovrHand_Left].ThePose.Orientation.z,
 				hmdState.HandPoses[ovrHand_Left].ThePose.Orientation.w);
+
 			controllerR->Pos = XMFLOAT3(XMVectorGetX(MainCam->Pos) + hmdState.HandPoses[ovrHand_Right].ThePose.Position.x,
 				XMVectorGetY(MainCam->Pos) + hmdState.HandPoses[ovrHand_Right].ThePose.Position.y,
 				XMVectorGetZ(MainCam->Pos) + hmdState.HandPoses[ovrHand_Right].ThePose.Position.z);
@@ -82,6 +84,7 @@ struct UsingBasicVR : BasicVR
 			//Button presses are modifying the colour of the controller model below
 			ovrInputState inputState;
 			ovr_GetInputState(Session, ovrControllerType_Touch, &inputState);
+			// ovrControllerType touchController[] = { ovrControllerType_LTouch, ovrControllerType_RTouch };
 
 			///		this->MainCam->Pos = initialPos = controllerL->Pos;
 
@@ -94,22 +97,46 @@ struct UsingBasicVR : BasicVR
 			if (inputState.Thumbstick[ovrHand_Left].x < -0.5f) MainCam->Pos = XMVectorSubtract(MainCam->Pos, right);
 			if (inputState.Thumbstick[ovrHand_Left].x > 0.5f) MainCam->Pos = XMVectorAdd(MainCam->Pos, right);
 
-			// 右手とブロックがほぼ重なってトリガーを押したら
-			if (inputState.HandTrigger[ovrHand_Right] > 0.5f
-				&& controllerR->Pos.x > testBlockModel->Pos.x + blockArea.x - 0.1f
-				&& controllerR->Pos.x < testBlockModel->Pos.x + blockArea.x + 0.1f
-				&& controllerR->Pos.y > testBlockModel->Pos.y + blockArea.y - 0.1f
-				&& controllerR->Pos.y < testBlockModel->Pos.y + blockArea.y + 0.1f
-				&& controllerR->Pos.z > testBlockModel->Pos.z + blockArea.z - 0.1f
-				&& controllerR->Pos.z < testBlockModel->Pos.z + blockArea.z + 0.1f)
+			// 右手とブロックがほぼ重なったら
+			if (controllerR->Pos.x > testBlockModel->Pos.x - 0.1f
+				&& controllerR->Pos.x < testBlockModel->Pos.x + 0.1f
+				&& controllerR->Pos.y > testBlockModel->Pos.y - 0.1f
+				&& controllerR->Pos.y < testBlockModel->Pos.y + 0.1f
+				&& controllerR->Pos.z > testBlockModel->Pos.z - 0.1f
+				&& controllerR->Pos.z < testBlockModel->Pos.z + 0.1f)
 			{
-				testBlockModel->Pos.x += (controllerR->Pos.x - preRightPos.x);
-				testBlockModel->Pos.y += (controllerR->Pos.y - preRightPos.y);
-				testBlockModel->Pos.z += (controllerR->Pos.z - preRightPos.z);
-				red = 1.0f;
+				// バイブレーションをさせる
+				ovr_SetControllerVibration(Session, ovrControllerType_RTouch, 1.0f, inputState.HandTrigger[ovrHand_Right] * 1.025f);
+
+				// トリガーを押したら
+				if (inputState.HandTrigger[ovrHand_Right] > 0.5f)
+				{
+					red = 0.5f;
+					testBlockModel->Pos.x += (controllerR->Pos.x - preRightPos.x);
+					testBlockModel->Pos.y += (controllerR->Pos.y - preRightPos.y);
+					testBlockModel->Pos.z += (controllerR->Pos.z - preRightPos.z);
+
+					// 回転度数の限界を設定しないとダメ。
+					//testBlockModel->Rot.x = (controllerR->Rot.x/* - preRightRot.x*/);
+					//testBlockModel->Rot.y = (controllerR->Rot.y/* - preRightRot.y*/);
+					//testBlockModel->Rot.z = (controllerR->Rot.z/* - preRightRot.z*/);
+					//testBlockModel->Rot.w = (controllerR->Rot.w/* - preRightRot.w*/);
+				}
+				else red = 1.0f;
 			}
 			else red = 0.0f;
 
+
+			// Xボタンでガーディアンの色を変更
+			if ((inputState.Buttons & ovrButton_X) != 0)
+			{
+				ovrBoundaryLookAndFeel colorz;
+				float rand1 = (float)rand() / RAND_MAX;
+				float rand2 = (float)rand() / RAND_MAX;
+				float rand3 = (float)rand() / RAND_MAX;
+				colorz.Color = { rand1, rand2, rand3, 1.0f };
+				ovr_SetBoundaryLookAndFeel(Session, &colorz);
+			}
 			
 			for (int eye = 0; eye < 2; ++eye)
 			{
@@ -128,6 +155,7 @@ struct UsingBasicVR : BasicVR
 
 			// 直前の右手の位置
 			preRightPos = controllerR->Pos;
+			preRightRot = controllerR->Rot;
 
 			Layer[0]->PrepareLayerHeader();
 			DistortAndPresent(1);
