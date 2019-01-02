@@ -1,4 +1,6 @@
 # OcuRiftFirstGame
+![Gif](https://raw.github.com/wiki/yutateno/OcuRiftFirstGame/oculus.gif)
+
 特に目的もなくOculusSDKのサンプルを利用して改変してVRのゲームみたいのなにか作ってみたいなと思って始めたものです。
 
 
